@@ -8,6 +8,8 @@ A SolidWorks add-in that adds a **3D Print** tab (and menu) to parts and assembl
     the last folder you used.
 - **One button per installed slicer**: exports the model and opens it in that slicer.
 
+![The 3D Print tab in SolidWorks with Export STL and Send to Bambu Studio, OrcaSlicer, PrusaSlicer, Cura and Creality Print buttons](docs/toolbar.png)
+
 Supported slicers (a button only appears if the slicer is installed):
 
 | Slicer | Status |
