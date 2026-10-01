@@ -18,18 +18,18 @@ using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
 using SolidWorks.Interop.swpublished;
 
-namespace SwToBambu
+namespace SolidSliceLink
 {
     [ComVisible(true)]
     [Guid("2c12f6d8-0a49-49a8-abaf-ef8bd194d6a2")]
-    [ProgId("SwToBambu.Addin")]
-    public class SwToBambuAddin : ISwAddin
+    [ProgId("SolidSliceLink.Addin")]
+    public class SolidSliceLinkAddin : ISwAddin
     {
         const int CmdGroupId = 0xB4B0;
         const string TabName = "3D Print";
         const string LegacyTabName = "Bambu";  // tab name used by v1, removed on load
         const int ExportFlyoutId = 0xB4B1;
-        const string SettingsKey = @"Software\SwToBambu";
+        const string SettingsKey = @"Software\SolidSliceLink";
         const string ExportHint = "Save the active document as STL next to its file";
         const string ExportAsHint = "Choose where to save the STL";
         static readonly int[] IconSizes = { 20, 32, 40, 64, 96, 128 };
@@ -152,7 +152,7 @@ namespace SwToBambu
         // color+letter = slicer icon (colored circle with letter), null letter = STL icon (arrow into tray).
         static string[] BuildIconStrips(List<Color> colors, List<string> letters)
         {
-            string dir = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "SwToBambu", "icons");
+            string dir = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "SolidSliceLink", "icons");
             Directory.CreateDirectory(dir);
             string tag = "v2_" + string.Join("", letters.ConvertAll(l => l ?? "_").ToArray());
             var paths = new string[IconSizes.Length];
@@ -307,7 +307,7 @@ namespace SwToBambu
                 string exe = slicerExes[i];
                 if (!File.Exists(exe)) { Warn(slicers[i].Name + " was not found at:\n" + exe); return; }
 
-                string dir = Path.Combine(Path.GetTempPath(), "SwToBambu");
+                string dir = Path.Combine(Path.GetTempPath(), "SolidSliceLink");
                 Directory.CreateDirectory(dir);
                 string stl = Path.Combine(dir, BaseName(doc) + ".stl");
                 if (!SaveStl(doc, stl)) return;
@@ -401,7 +401,7 @@ namespace SwToBambu
             using (var k = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\SolidWorks\Addins\" + guid))
             {
                 k.SetValue(null, 1);
-                k.SetValue("Title", "3D Print (Export STL / Send to Slicer)");
+                k.SetValue("Title", "SolidSliceLink (3D Print: Export STL / Send to Slicer)");
                 k.SetValue("Description", "One-click STL export and send to Bambu Studio, OrcaSlicer, PrusaSlicer, Cura");
             }
             using (var k = Registry.CurrentUser.CreateSubKey(@"Software\SolidWorks\AddInsStartup\" + guid))

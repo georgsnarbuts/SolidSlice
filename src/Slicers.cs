@@ -7,7 +7,7 @@ using System.Drawing;
 using System.IO;
 using Microsoft.Win32;
 
-namespace SwToBambu
+namespace SolidSliceLink
 {
     public class Slicer
     {
@@ -48,12 +48,12 @@ namespace SwToBambu
                 ArgsFormat = "\"{0}\"", Color = Color.FromArgb(40, 40, 40), Letter = "CP" },
         };
 
-        const string OverrideKey = @"Software\SwToBambu\Slicers";
+        const string OverrideKey = @"Software\SolidSliceLink\Slicers";
 
         // Returns the slicer's executable, or null if it isn't installed.
         public string FindExe()
         {
-            // 1. manual override: HKCU\Software\SwToBambu\Slicers, value <Name> = full exe path
+            // 1. manual override: HKCU\Software\SolidSliceLink\Slicers, value <Name> = full exe path
             using (var k = Registry.CurrentUser.OpenSubKey(OverrideKey))
             {
                 string p = k == null ? null : k.GetValue(Name) as string;

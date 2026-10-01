@@ -1,4 +1,4 @@
-# SwToBambu – 3D Print tab for SolidWorks
+# SolidSliceLink – 3D Print tab for SolidWorks
 
 A SolidWorks add-in that adds a **3D Print** tab (and menu) to parts and assemblies:
 
@@ -31,7 +31,7 @@ Supported slicers (a button only appears if the slicer is installed):
 
 ## Install
 
-1. Download or clone this repository.
+1. Download or clone this repository (`git clone <repo-url> solid-slice-link`).
 2. Close SolidWorks.
 3. Double-click **`install.cmd`** and accept the admin prompt. It compiles the add-in
    against your local SolidWorks API and registers it.
@@ -71,9 +71,9 @@ Leave the setting off if you prefer a fresh slicer window for every part.
   Default configuration, its name is added to the file name.
 - **Export STL** writes `<part folder>\<part name>.stl` and overwrites any existing file.
   Unsaved documents ask for a location. **Choose location...** opens a save dialog that
-  starts in the last folder you used (stored in `HKCU\Software\SwToBambu\LastExportFolder`).
+  starts in the last folder you used (stored in `HKCU\Software\SolidSliceLink\LastExportFolder`).
   Both options are also in the **3D Print** menu.
-- **Send to slicer** writes to `%TEMP%\SwToBambu\` and starts the slicer with that file.
+- **Send to slicer** writes to `%TEMP%\SolidSliceLink\` and starts the slicer with that file.
 
 ### Slicer not detected?
 
@@ -81,7 +81,7 @@ Slicers are found through the Windows *Installed apps* list and the default
 Program Files folders. For portable or unusual installs, set the path manually:
 
 ```
-reg add HKCU\Software\SwToBambu\Slicers /v "OrcaSlicer" /d "D:\Tools\OrcaSlicer\orca-slicer.exe"
+reg add HKCU\Software\SolidSliceLink\Slicers /v "OrcaSlicer" /d "D:\Tools\OrcaSlicer\orca-slicer.exe"
 ```
 
 The value name must match the button name (`Bambu Studio`, `OrcaSlicer`, `PrusaSlicer`,
@@ -98,3 +98,8 @@ Then run `install.cmd` again.
 - **Mesh quality** comes from your SolidWorks STL export settings
   (*File → Save As → STL → Options*). Pick *Fine* or *Custom* if curves look faceted.
 - To rebuild after changing the code, close SolidWorks first, because it locks the DLL.
+
+---
+
+SolidSliceLink is an independent project and is not affiliated with Dassault Systèmes
+(SOLIDWORKS), Bambu Lab, Prusa Research, UltiMaker, Creality or the OrcaSlicer project.
