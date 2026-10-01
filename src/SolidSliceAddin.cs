@@ -117,14 +117,15 @@ namespace SolidSlice
             var ids = new List<int>();
             foreach (int idx in items) ids.Add(grp.get_CommandID(idx));
 
-            // Export STL split button: click = next to part, arrow = choose location
+            // Export STL dropdown: "Save next to part" / "Choose location...".
+            // Same pattern as the SolidWorks add-in template: Simple style, items (re)added in the
+            // open callback. (Favorite style raised "An invalid argument was encountered".)
             try { cmdMgr.RemoveFlyoutGroup(ExportFlyoutId); } catch { }
             string[] stlIcons = BuildIconStrips(new List<Color> { StlColor, StlColor }, new List<string> { null, null });
             FlyoutGroup fly = cmdMgr.CreateFlyoutGroup2(ExportFlyoutId, "Export STL", "Export STL", ExportHint,
-                mainIcons, stlIcons, "ExportFlyoutOpened", "CanExport");
-            fly.AddCommandItem("Save next to part", ExportHint, 0, "ExportStl", "CanExport");
-            fly.AddCommandItem("Choose location...", ExportAsHint, 1, "ExportStlAs", "CanExport");
-            fly.FlyoutType = (int)swCommandFlyoutStyle_e.swCommandFlyoutStyle_Favorite;
+                mainIcons, stlIcons, "ExportFlyoutOpened", "ExportFlyoutEnable");
+            AddExportFlyoutItems(fly);
+            fly.FlyoutType = (int)swCommandFlyoutStyle_e.swCommandFlyoutStyle_Simple;
 
             foreach (int docType in new[] { (int)swDocumentTypes_e.swDocPART, (int)swDocumentTypes_e.swDocASSEMBLY })
             {
@@ -138,7 +139,7 @@ namespace SolidSlice
 
                 // [Export STL ▾] | [slicers...]
                 tab.AddCommandTabBox().AddCommands(new[] { fly.CmdID },
-                    new[] { textBelow | (int)swCommandTabButtonFlyoutStyle_e.swCommandTabButton_ActionFlyout });
+                    new[] { textBelow | (int)swCommandTabButtonFlyoutStyle_e.swCommandTabButton_SimpleFlyout });
                 if (ids.Count > 0)
                 {
                     int[] styles = new int[ids.Count];
@@ -236,9 +237,24 @@ namespace SolidSlice
             Export(true);
         }
 
-        // Called when the Export STL flyout opens; its items are static so nothing to do.
+        // Called when the Export STL flyout opens.
         public void ExportFlyoutOpened()
         {
+            FlyoutGroup fly = cmdMgr.GetFlyoutGroup(ExportFlyoutId);
+            if (fly == null) return;
+            fly.RemoveAllCommandItems();
+            AddExportFlyoutItems(fly);
+        }
+
+        public int ExportFlyoutEnable()
+        {
+            return 1;
+        }
+
+        static void AddExportFlyoutItems(FlyoutGroup fly)
+        {
+            fly.AddCommandItem("Save next to part", ExportHint, 0, "ExportStl", "CanExport");
+            fly.AddCommandItem("Choose location...", ExportAsHint, 1, "ExportStlAs", "CanExport");
         }
 
         void Export(bool chooseLocation)

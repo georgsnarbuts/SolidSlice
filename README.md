@@ -2,10 +2,10 @@
 
 A SolidWorks add-in that adds a **3D Print** tab (and menu) to parts and assemblies:
 
-- **Export STL** (split button):
-  - click the button: saves the STL next to the part file in one click, with no dialog
-  - click the ▾ arrow and choose **Choose location...**: pick the folder and file name
-    yourself. The add-in remembers the last folder you used.
+- **Export STL** (dropdown):
+  - **Save next to part**: saves the STL in the part's folder, with no dialog
+  - **Choose location...**: pick the folder and file name yourself. The add-in remembers
+    the last folder you used.
 - **One button per installed slicer**: exports the model and opens it in that slicer.
 
 Supported slicers (a button only appears if the slicer is installed):
