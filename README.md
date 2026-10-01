@@ -2,9 +2,9 @@
 
 <p align="center"><img src="docs/toolbar.png" alt="The 3D Print tab in SolidWorks with Export STL, STL quality, and Send to Bambu Studio, OrcaSlicer, PrusaSlicer, Cura and Creality Print buttons"></p>
 
-A SolidWorks add-in for streamlined automatic model import into popular 3D printer slicers.
+<p align="center"><img src="docs/demo.gif" alt="Demo: clicking Send to Bambu Studio in SolidWorks opens the part in Bambu Studio" width="900"></p>
 
-It adds a **3D Print** tab (and menu) to parts and assemblies:
+A SolidWorks add-in that adds a **3D Print** tab (and menu) to parts and assemblies:
 
 - **Export STL** (dropdown):
   - **Save next to part**: saves the STL in the part's folder, with no dialog
