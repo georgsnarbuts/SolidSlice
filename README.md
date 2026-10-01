@@ -1,4 +1,4 @@
-# SolidSlice – 3D Print tab for SolidWorks
+# SolidSlice – 3D print add-in for SolidWorks
 
 <p align="center"><img src="docs/toolbar.png" alt="The 3D Print tab in SolidWorks with Export STL, STL quality, and Send to Bambu Studio, OrcaSlicer, PrusaSlicer, Cura and Creality Print buttons"></p>
 
