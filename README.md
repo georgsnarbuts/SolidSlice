@@ -1,4 +1,4 @@
-# SolidSlice – 3D Print tab for SolidWorks
+﻿# SolidSlice – 3D Print tab for SolidWorks
 
 A SolidWorks add-in that adds a **3D Print** tab (and menu) to parts and assemblies:
 
@@ -6,8 +6,13 @@ A SolidWorks add-in that adds a **3D Print** tab (and menu) to parts and assembl
   - **Save next to part**: saves the STL in the part's folder, with no dialog
   - **Choose location...**: pick the folder and file name yourself. The add-in remembers
     the last folder you used.
-- **Quality** (dropdown): the triangle resolution for **every** export, both Export STL
-  and all slicer buttons. The current choice is marked with ✓ and remembered.
+- **STL quality** (dropdown): the triangle resolution for **every** export, both Export STL
+  and all slicer buttons. The current choice is marked with ✓.
+  - **Set it once:** your choice is saved and used for all later exports, even after
+    restarting SolidWorks, until you pick a different preset.
+  - **Your own settings stay untouched:** SolidWorks' built-in STL options
+    (*File → Save As → STL → Options*) are not changed. The preset applies only to
+    SolidSlice exports, so a manual *Save As → STL* behaves exactly as before.
 
   | Preset | Max deviation | Max angle |
   |---|---|---|
@@ -19,7 +24,7 @@ A SolidWorks add-in that adds a **3D Print** tab (and menu) to parts and assembl
 
 - **One button per installed slicer**: exports the model and opens it in that slicer.
 
-![The 3D Print tab in SolidWorks with Export STL and Send to Bambu Studio, OrcaSlicer, PrusaSlicer, Cura and Creality Print buttons](docs/toolbar.png)
+![The 3D Print tab in SolidWorks with Export STL, STL quality, and Send to Bambu Studio, OrcaSlicer, PrusaSlicer, Cura and Creality Print buttons](docs/toolbar.png)
 
 Supported slicers (a button only appears if the slicer is installed):
 
@@ -80,7 +85,7 @@ Leave the setting off if you prefer a fresh slicer window for every part.
 ## How it works
 
 - **STL format:** STLs are always binary, in millimetres, and a single file for assemblies,
-  with the triangle resolution from the **Quality** dropdown.
+  with the triangle resolution from the **STL quality** dropdown.
   Your SolidWorks STL export settings are restored afterwards. If you're not using the
   Default configuration, its name is added to the file name.
 - **Export STL** writes `<part folder>\<part name>.stl` and overwrites any existing file.
@@ -109,7 +114,7 @@ Then run `install.cmd` again.
 
 ## Tips
 
-- **Faceted curves?** Pick *High* or *Ultra* in the **Quality** dropdown.
+- **Faceted curves?** Pick *High* or *Ultra* in the **STL quality** dropdown.
   **Huge files or a slow slicer?** Go down to *Normal* or *Draft*.
 - To rebuild after changing the code, close SolidWorks first, because it locks the DLL.
 
