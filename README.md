@@ -1,4 +1,6 @@
-﻿# SolidSlice – 3D Print tab for SolidWorks
+# SolidSlice – 3D Print tab for SolidWorks
+
+![The 3D Print tab in SolidWorks with Export STL, STL quality, and Send to Bambu Studio, OrcaSlicer, PrusaSlicer, Cura and Creality Print buttons](docs/toolbar.png)
 
 A SolidWorks add-in that adds a **3D Print** tab (and menu) to parts and assemblies:
 
@@ -23,8 +25,6 @@ A SolidWorks add-in that adds a **3D Print** tab (and menu) to parts and assembl
   | Ultra | 0.002 mm | 2° |
 
 - **One button per installed slicer**: exports the model and opens it in that slicer.
-
-![The 3D Print tab in SolidWorks with Export STL, STL quality, and Send to Bambu Studio, OrcaSlicer, PrusaSlicer, Cura and Creality Print buttons](docs/toolbar.png)
 
 Supported slicers (a button only appears if the slicer is installed):
 
