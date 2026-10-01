@@ -5,8 +5,6 @@ A SolidWorks add-in that adds a **3D Print** tab (and menu) to parts and assembl
 - **Export STL**: saves the active document as an STL next to its file in one click,
   with no dialogs.
 - **One button per installed slicer**: exports the model and opens it in that slicer.
-  If the slicer is already open, the model is added to the open window instead of
-  starting a new one.
 
 Supported slicers (a button only appears if the slicer is installed):
 
@@ -50,8 +48,18 @@ restart SolidWorks and its button appears.
   Default configuration, its name is added to the file name.
 - **Export STL** writes `<part folder>\<part name>.stl` and overwrites any existing file.
   Unsaved documents ask for a location.
-- **Send to slicer** writes to `%TEMP%\SwToBambu\` and starts the slicer with
-  `--single-instance <file>`.
+- **Send to slicer** writes to `%TEMP%\SwToBambu\` and starts the slicer with that file.
+
+### Reuse the open slicer window instead of opening a new one
+
+Each slicer decides this itself. Turn on its single-instance preference once:
+
+| Slicer | Setting |
+|---|---|
+| Bambu Studio | Preferences → *Keep only one Bambu Studio instance* |
+| OrcaSlicer | Preferences → *Allow only one OrcaSlicer instance* |
+| PrusaSlicer | Configuration → Preferences → *Allow just a single PrusaSlicer instance* |
+| Cura | Preferences → General → *Use a single instance of Cura* |
 
 ### Slicer not detected?
 

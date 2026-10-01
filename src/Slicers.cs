@@ -19,32 +19,33 @@ namespace SwToBambu
         public Color Color;              // icon color
         public string Letter;            // icon letter
 
-        // All of these (Slic3r/PrusaSlicer family and Cura) accept --single-instance, which
-        // passes the file to an already running window instead of opening a new one.
+        // Slicers are started with just the file path. Whether that reuses an open window is
+        // decided by the slicer's own "single instance" preference (see README). Don't pass
+        // --single-instance: Bambu Studio rejects it and exits with code -2.
         public static readonly Slicer[] All =
         {
             new Slicer {
                 Name = "Bambu Studio", DisplayNames = new[] { "Bambu Studio" },
                 ExeNames = new[] { "bambu-studio.exe" }, DefaultDirs = new[] { "Bambu Studio" },
-                ArgsFormat = "--single-instance \"{0}\"", Color = Color.FromArgb(0, 174, 66), Letter = "B" },
+                ArgsFormat = "\"{0}\"", Color = Color.FromArgb(0, 174, 66), Letter = "B" },
             new Slicer {
                 Name = "OrcaSlicer", DisplayNames = new[] { "OrcaSlicer", "Orca Slicer" },
                 ExeNames = new[] { "orca-slicer.exe" }, DefaultDirs = new[] { "OrcaSlicer" },
-                ArgsFormat = "--single-instance \"{0}\"", Color = Color.FromArgb(0, 150, 136), Letter = "O" },
+                ArgsFormat = "\"{0}\"", Color = Color.FromArgb(0, 150, 136), Letter = "O" },
             new Slicer {
                 Name = "PrusaSlicer", DisplayNames = new[] { "PrusaSlicer" },
                 ExeNames = new[] { "prusa-slicer.exe" }, DefaultDirs = new[] { @"Prusa3D\PrusaSlicer" },
-                ArgsFormat = "--single-instance \"{0}\"", Color = Color.FromArgb(250, 104, 49), Letter = "P" },
+                ArgsFormat = "\"{0}\"", Color = Color.FromArgb(250, 104, 49), Letter = "P" },
             new Slicer {
                 Name = "Cura", DisplayNames = new[] { "UltiMaker Cura", "Ultimaker Cura" },
                 ExeNames = new[] { "UltiMaker-Cura.exe", "Ultimaker-Cura.exe", "Cura.exe" },
                 DefaultDirs = new[] { "UltiMaker Cura*", "Ultimaker Cura*" },
-                ArgsFormat = "--single-instance \"{0}\"", Color = Color.FromArgb(25, 110, 240), Letter = "C" },
+                ArgsFormat = "\"{0}\"", Color = Color.FromArgb(25, 110, 240), Letter = "C" },
             new Slicer {
                 Name = "Creality Print", DisplayNames = new[] { "Creality Print", "CrealityPrint" },
                 ExeNames = new[] { "CrealityPrint.exe", "Creality Print.exe" },
                 DefaultDirs = new[] { "Creality\\Creality Print*", "Creality Print*" },
-                ArgsFormat = "--single-instance \"{0}\"", Color = Color.FromArgb(40, 40, 40), Letter = "CP" },
+                ArgsFormat = "\"{0}\"", Color = Color.FromArgb(40, 40, 40), Letter = "CP" },
         };
 
         const string OverrideKey = @"Software\SwToBambu\Slicers";
