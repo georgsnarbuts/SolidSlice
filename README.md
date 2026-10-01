@@ -101,6 +101,10 @@ Then run `install.cmd` again.
   (*File → Save As → STL → Options*). Pick *Fine* or *Custom* if curves look faceted.
 - To rebuild after changing the code, close SolidWorks first, because it locks the DLL.
 
+## License
+
+[MIT](LICENSE) © 2026 Georgs Narbuts
+
 ---
 
 SolidSlice is an independent project and is not affiliated with Dassault Systèmes
