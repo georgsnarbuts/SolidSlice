@@ -30,6 +30,6 @@ foreach ($dll in $refs) { Copy-Item (Join-Path $redist $dll) $out -Force }
 & $csc /nologo /target:library /platform:x64 /optimize+ "/out:$out\SwToBambu.dll" `
     ($refs | ForEach-Object { "/reference:$out\$_" }) `
     /reference:System.Windows.Forms.dll /reference:System.Drawing.dll `
-    (Join-Path $PSScriptRoot 'src\SwToBambuAddin.cs')
+    (Join-Path $PSScriptRoot 'src\*.cs')
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 Write-Host "Built $out\SwToBambu.dll (SolidWorks API from $redist)"

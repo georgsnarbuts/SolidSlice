@@ -1,9 +1,11 @@
-// SolidWorks add-in: "Send to Bambu Studio"
-// Exports the active part/assembly to STL (mm, binary) and opens it in Bambu Studio.
-// Adds a "3D Print" CommandManager tab and menu in parts and assemblies.
+// SolidWorks add-in: "3D Print" tab
+//  - Export STL: saves the active part/assembly as STL next to the file, no dialogs.
+//  - One button per installed slicer (Bambu Studio, OrcaSlicer, PrusaSlicer, Cura, ...):
+//    exports to a temp STL and opens it in that slicer, reusing a running window.
 // Note: compiled with the .NET Framework csc.exe (C# 5) - no string interpolation / ?. operators.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -26,12 +28,15 @@ namespace SwToBambu
         const int CmdGroupId = 0xB4B0;
         const string TabName = "3D Print";
         const string LegacyTabName = "Bambu";  // tab name used by v1, removed on load
-        const string SettingsKey = @"Software\SwToBambu";
         static readonly int[] IconSizes = { 20, 32, 40, 64, 96, 128 };
+        static readonly Color StlColor = Color.FromArgb(70, 80, 95);
 
         SldWorks swApp;
         ICommandManager cmdMgr;
         int addinCookie;
+        // slicers found on this PC, index = callback argument
+        readonly List<Slicer> slicers = new List<Slicer>();
+        readonly List<string> slicerExes = new List<string>();
 
         #region ISwAddin
 
@@ -41,6 +46,16 @@ namespace SwToBambu
             addinCookie = Cookie;
             swApp.SetAddinCallbackInfo2(0, this, addinCookie);
             cmdMgr = swApp.GetCommandManager(addinCookie);
+
+            foreach (Slicer s in Slicer.All)
+            {
+                string exe = null;
+                try { exe = s.FindExe(); } catch { }
+                if (exe == null) continue;
+                slicers.Add(s);
+                slicerExes.Add(exe);
+            }
+
             AddCommands();
             return true;
         }
@@ -62,24 +77,39 @@ namespace SwToBambu
 
         void AddCommands()
         {
-            string[] icons = BuildIcons();
+            // icon strip: [Export STL][slicer 0][slicer 1]...
+            var iconColors = new List<Color> { StlColor };
+            var iconLetters = new List<string> { null };
+            foreach (Slicer s in slicers) { iconColors.Add(s.Color); iconLetters.Add(s.Letter); }
+            string[] icons = BuildIconStrips(iconColors, iconLetters);
+            string[] mainIcons = BuildIconStrips(new List<Color> { StlColor }, new List<string> { null });
+
             int err = 0;
-
             CommandGroup grp = cmdMgr.CreateCommandGroup2(CmdGroupId, TabName,
-                "Send to Bambu Studio", "Send to Bambu Studio", -1, true, ref err);
+                "Export STL and send to slicers", "3D Print", -1, true, ref err);
             grp.IconList = icons;
-            grp.MainIconList = icons;
+            grp.MainIconList = mainIcons;
 
-            int itemIdx = grp.AddCommandItem2("Send to Bambu Studio", -1,
-                "Export the active part to STL and open it in Bambu Studio",
-                "Send to Bambu Studio", 0, "SendToBambu", "SendToBambuEnable", 0,
-                (int)(swCommandItemType_e.swMenuItem | swCommandItemType_e.swToolbarItem));
+            const int itemType = (int)(swCommandItemType_e.swMenuItem | swCommandItemType_e.swToolbarItem);
+            var items = new List<int>();
+            items.Add(grp.AddCommandItem2("Export STL", -1,
+                "Save the active document as STL next to its file", "Export STL",
+                0, "ExportStl", "CanExport", 0, itemType));
+            for (int i = 0; i < slicers.Count; i++)
+            {
+                string hint = "Send to " + slicers[i].Name;
+                items.Add(grp.AddCommandItem2(slicers[i].Name, -1,
+                    "Export the active document and open it in " + slicers[i].Name, hint,
+                    i + 1, "SendToSlicer(" + i + ")", "CanExport", i + 1, itemType));
+            }
 
             grp.HasToolbar = true;
             grp.HasMenu = true;
             grp.Activate();
 
-            int cmdId = grp.get_CommandID(itemIdx);
+            var ids = new List<int>();
+            foreach (int idx in items) ids.Add(grp.get_CommandID(idx));
+
             foreach (int docType in new[] { (int)swDocumentTypes_e.swDocPART, (int)swDocumentTypes_e.swDocASSEMBLY })
             {
                 foreach (string name in new[] { TabName, LegacyTabName })
@@ -88,53 +118,89 @@ namespace SwToBambu
                     if (old != null) cmdMgr.RemoveCommandTab(old);
                 }
                 CommandTab tab = cmdMgr.AddCommandTab(docType, TabName);
-                CommandTabBox box = tab.AddCommandTabBox();
-                box.AddCommands(new[] { cmdId },
-                    new[] { (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow });
+                const int textBelow = (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow;
+
+                // [Export STL] | [slicers...]
+                tab.AddCommandTabBox().AddCommands(new[] { ids[0] }, new[] { textBelow });
+                if (ids.Count > 1)
+                {
+                    int[] slicerIds = ids.GetRange(1, ids.Count - 1).ToArray();
+                    int[] styles = new int[slicerIds.Length];
+                    for (int i = 0; i < styles.Length; i++) styles[i] = textBelow;
+                    tab.AddCommandTabBox().AddCommands(slicerIds, styles);
+                }
             }
         }
 
-        // Draws simple green "send" icons at the sizes SolidWorks asks for.
-        static string[] BuildIcons()
+        // One PNG strip per size with an icon per command, as SolidWorks expects.
+        // color+letter = slicer icon (colored circle with letter), null letter = STL icon (arrow into tray).
+        static string[] BuildIconStrips(List<Color> colors, List<string> letters)
         {
             string dir = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "SwToBambu", "icons");
             Directory.CreateDirectory(dir);
+            string tag = "v2_" + string.Join("", letters.ConvertAll(l => l ?? "_").ToArray());
             var paths = new string[IconSizes.Length];
             for (int i = 0; i < IconSizes.Length; i++)
             {
                 int s = IconSizes[i];
-                string p = Path.Combine(dir, "icon_" + s + ".png");
+                string p = Path.Combine(dir, tag + "_" + s + ".png");
                 paths[i] = p;
                 if (File.Exists(p)) continue;
-                using (var bmp = new Bitmap(s, s, PixelFormat.Format32bppArgb))
+                using (var bmp = new Bitmap(s * colors.Count, s, PixelFormat.Format32bppArgb))
                 using (var g = Graphics.FromImage(bmp))
                 {
                     g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
                     g.Clear(Color.Transparent);
-                    float m = s * 0.06f;
-                    using (var brush = new SolidBrush(Color.FromArgb(0, 174, 66)))
-                        g.FillEllipse(brush, m, m, s - 2 * m, s - 2 * m);
-                    // white arrow pointing right
-                    float c = s / 2f;
-                    var arrow = new[]
+                    for (int n = 0; n < colors.Count; n++)
                     {
-                        new PointF(s * 0.25f, c - s * 0.09f), new PointF(c, c - s * 0.09f),
-                        new PointF(c, s * 0.24f), new PointF(s * 0.78f, c),
-                        new PointF(c, s * 0.76f), new PointF(c, c + s * 0.09f),
-                        new PointF(s * 0.25f, c + s * 0.09f)
-                    };
-                    g.FillPolygon(Brushes.White, arrow);
+                        g.ResetTransform();
+                        g.TranslateTransform(n * s, 0);
+                        if (letters[n] == null) DrawStlIcon(g, s, colors[n]);
+                        else DrawLetterIcon(g, s, colors[n], letters[n]);
+                    }
                     bmp.Save(p, ImageFormat.Png);
                 }
             }
             return paths;
         }
 
+        static void DrawLetterIcon(Graphics g, int s, Color color, string letter)
+        {
+            float m = s * 0.06f;
+            using (var brush = new SolidBrush(color))
+                g.FillEllipse(brush, m, m, s - 2 * m, s - 2 * m);
+            float fontPx = s * (letter.Length > 1 ? 0.36f : 0.5f);
+            using (var font = new Font("Segoe UI", fontPx, FontStyle.Bold, GraphicsUnit.Pixel))
+            using (var fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                g.DrawString(letter, font, Brushes.White, new RectangleF(0, s * 0.02f, s, s), fmt);
+        }
+
+        static void DrawStlIcon(Graphics g, int s, Color color)
+        {
+            using (var brush = new SolidBrush(color))
+            {
+                // down arrow
+                float c = s / 2f;
+                g.FillPolygon(brush, new[] {
+                    new PointF(c - s * 0.1f, s * 0.08f), new PointF(c + s * 0.1f, s * 0.08f),
+                    new PointF(c + s * 0.1f, s * 0.38f), new PointF(c + s * 0.26f, s * 0.38f),
+                    new PointF(c, s * 0.64f), new PointF(c - s * 0.26f, s * 0.38f),
+                    new PointF(c - s * 0.1f, s * 0.38f) });
+                // tray
+                float w = Math.Max(1.5f, s * 0.1f);
+                using (var pen = new Pen(brush, w) { LineJoin = LineJoin.Round })
+                    g.DrawLines(pen, new[] {
+                        new PointF(s * 0.12f, s * 0.6f), new PointF(s * 0.12f, s * 0.88f),
+                        new PointF(s * 0.88f, s * 0.88f), new PointF(s * 0.88f, s * 0.6f) });
+            }
+        }
+
         #endregion
 
         #region Commands (called by SolidWorks via callback names)
 
-        public int SendToBambuEnable()
+        public int CanExport()
         {
             var doc = swApp.ActiveDoc as ModelDoc2;
             if (doc == null) return 0;
@@ -142,46 +208,84 @@ namespace SwToBambu
             return (t == (int)swDocumentTypes_e.swDocPART || t == (int)swDocumentTypes_e.swDocASSEMBLY) ? 1 : 0;
         }
 
-        public void SendToBambu()
+        public void ExportStl()
         {
             try
             {
                 var doc = swApp.ActiveDoc as ModelDoc2;
-                if (doc == null) { Warn("No active document."); return; }
+                if (doc == null) return;
 
-                string exe = FindBambuStudio();
-                if (exe == null) return;
+                string dir = Path.GetDirectoryName(doc.GetPathName());
+                string outPath;
+                if (string.IsNullOrEmpty(dir))
+                {
+                    // never saved: ask where to put it
+                    using (var dlg = new SaveFileDialog())
+                    {
+                        dlg.Filter = "STL (*.stl)|*.stl";
+                        dlg.FileName = BaseName(doc) + ".stl";
+                        if (dlg.ShowDialog() != DialogResult.OK) return;
+                        outPath = dlg.FileName;
+                    }
+                }
+                else outPath = Path.Combine(dir, BaseName(doc) + ".stl");
 
-                string stl = ExportStl(doc);
-                if (stl == null) return;
-
-                // --single-instance hands the file to an already running Bambu Studio
-                // (if any) instead of opening a second window.
-                var psi = new ProcessStartInfo(exe, "--single-instance \"" + stl + "\"");
-                psi.UseShellExecute = false;
-                psi.WorkingDirectory = Path.GetDirectoryName(exe);
-                Process.Start(psi);
+                if (SaveStl(doc, outPath)) Status("Exported " + outPath);
             }
             catch (Exception ex)
             {
-                Warn("Send to Bambu Studio failed:\n" + ex.Message);
+                Warn("STL export failed:\n" + ex.Message);
             }
         }
 
-        string ExportStl(ModelDoc2 doc)
+        public void SendToSlicer(string index)
+        {
+            try
+            {
+                int i = int.Parse(index);
+                var doc = swApp.ActiveDoc as ModelDoc2;
+                if (doc == null) return;
+
+                string exe = slicerExes[i];
+                if (!File.Exists(exe)) { Warn(slicers[i].Name + " was not found at:\n" + exe); return; }
+
+                string dir = Path.Combine(Path.GetTempPath(), "SwToBambu");
+                Directory.CreateDirectory(dir);
+                string stl = Path.Combine(dir, BaseName(doc) + ".stl");
+                if (!SaveStl(doc, stl)) return;
+
+                var psi = new ProcessStartInfo(exe, string.Format(slicers[i].ArgsFormat, stl));
+                psi.UseShellExecute = false;
+                psi.WorkingDirectory = Path.GetDirectoryName(exe);
+                Process.Start(psi);
+                Status("Sent " + Path.GetFileName(stl) + " to " + slicers[i].Name);
+            }
+            catch (Exception ex)
+            {
+                Warn("Send to slicer failed:\n" + ex.Message);
+            }
+        }
+
+        #endregion
+
+        #region Export
+
+        // File name without extension, plus the configuration name if it isn't "Default".
+        static string BaseName(ModelDoc2 doc)
         {
             string name = Path.GetFileNameWithoutExtension(doc.GetPathName());
             if (string.IsNullOrEmpty(name)) name = Path.GetFileNameWithoutExtension(doc.GetTitle());
             string config = doc.ConfigurationManager.ActiveConfiguration.Name;
             if (!string.IsNullOrEmpty(config) && config != "Default") name += " - " + config;
             foreach (char ch in Path.GetInvalidFileNameChars()) name = name.Replace(ch, '_');
+            return name;
+        }
 
-            string dir = Path.Combine(Path.GetTempPath(), "SwToBambu");
-            Directory.CreateDirectory(dir);
-            string outPath = Path.Combine(dir, name + ".stl");
+        // Saves a binary, millimetre, single-file STL copy; the user's STL settings are restored afterwards.
+        bool SaveStl(ModelDoc2 doc, string outPath)
+        {
             if (File.Exists(outPath)) File.Delete(outPath);
 
-            // Force mm / binary / single file, then restore the user's settings.
             var unitsPref = swUserPreferenceIntegerValue_e.swExportStlUnits;
             var binPref = swUserPreferenceToggle_e.swSTLBinaryFormat;
             var onePref = swUserPreferenceToggle_e.swSTLComponentsIntoOneFile;
@@ -212,61 +316,9 @@ namespace SwToBambu
             if (!ok || !File.Exists(outPath))
             {
                 Warn("STL export failed (error code " + errs + ").");
-                return null;
+                return false;
             }
-            return outPath;
-        }
-
-        #endregion
-
-        #region Bambu Studio lookup
-
-        string FindBambuStudio()
-        {
-            // 1. path remembered from a previous browse
-            using (var k = Registry.CurrentUser.OpenSubKey(SettingsKey))
-            {
-                string p = k == null ? null : k.GetValue("BambuStudioPath") as string;
-                if (p != null && File.Exists(p)) return p;
-            }
-
-            // 2. installer registry entries
-            string[] roots = {
-                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall" };
-            foreach (var hive in new[] { Registry.LocalMachine, Registry.CurrentUser })
-                foreach (string root in roots)
-                    using (var k = hive.OpenSubKey(root))
-                    {
-                        if (k == null) continue;
-                        foreach (string sub in k.GetSubKeyNames())
-                            using (var app = k.OpenSubKey(sub))
-                            {
-                                string dn = app.GetValue("DisplayName") as string;
-                                if (dn == null || !dn.StartsWith("Bambu Studio", StringComparison.OrdinalIgnoreCase)) continue;
-                                string icon = app.GetValue("DisplayIcon") as string;
-                                if (icon != null)
-                                {
-                                    icon = icon.Split(',')[0].Trim('"');
-                                    if (File.Exists(icon)) return icon;
-                                }
-                            }
-                    }
-
-            // 3. default location
-            string def = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ProgramFiles), "Bambu Studio", "bambu-studio.exe");
-            if (File.Exists(def)) return def;
-
-            // 4. ask the user once
-            using (var dlg = new OpenFileDialog())
-            {
-                dlg.Title = "Locate bambu-studio.exe";
-                dlg.Filter = "Bambu Studio|bambu-studio.exe|Programs (*.exe)|*.exe";
-                if (dlg.ShowDialog() != DialogResult.OK) return null;
-                using (var k = Registry.CurrentUser.CreateSubKey(SettingsKey))
-                    k.SetValue("BambuStudioPath", dlg.FileName);
-                return dlg.FileName;
-            }
+            return true;
         }
 
         #endregion
@@ -274,6 +326,12 @@ namespace SwToBambu
         void Warn(string msg)
         {
             swApp.SendMsgToUser2(msg, (int)swMessageBoxIcon_e.swMbWarning, (int)swMessageBoxBtn_e.swMbOk);
+        }
+
+        void Status(string msg)
+        {
+            var frame = swApp.Frame() as Frame;
+            if (frame != null) frame.SetStatusBarText(msg);
         }
 
         #region COM registration
@@ -285,8 +343,8 @@ namespace SwToBambu
             using (var k = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\SolidWorks\Addins\" + guid))
             {
                 k.SetValue(null, 1);
-                k.SetValue("Title", "Send to Bambu Studio");
-                k.SetValue("Description", "Exports the active part to STL and opens it in Bambu Studio");
+                k.SetValue("Title", "3D Print (Export STL / Send to Slicer)");
+                k.SetValue("Description", "One-click STL export and send to Bambu Studio, OrcaSlicer, PrusaSlicer, Cura");
             }
             using (var k = Registry.CurrentUser.CreateSubKey(@"Software\SolidWorks\AddInsStartup\" + guid))
                 k.SetValue(null, 1);
