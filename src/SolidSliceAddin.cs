@@ -32,8 +32,31 @@ namespace SolidSlice
         const string SettingsKey = @"Software\SolidSlice";
         const string ExportHint = "Save the active document as STL next to its file";
         const string ExportAsHint = "Choose where to save the STL";
+        const int QualityFlyoutId = 0xB4B2;
+        const string QualityIcon = "#Q";  // icon-strip marker: draw the triangle-mesh icon
         static readonly int[] IconSizes = { 20, 32, 40, 64, 96, 128 };
         static readonly Color StlColor = Color.FromArgb(70, 80, 95);
+
+        // STL resolution presets used by every export (Export STL and all slicer buttons).
+        // Index 0 keeps the user's own SolidWorks STL options.
+        class StlQuality
+        {
+            public string Name; public double DeviationMm; public double AngleDeg;
+            public StlQuality(string name, double deviationMm, double angleDeg)
+            { Name = name; DeviationMm = deviationMm; AngleDeg = angleDeg; }
+            public string Label
+            {
+                get { return DeviationMm <= 0 ? Name : Name + "  (" + DeviationMm + " mm, " + AngleDeg + "°)"; }
+            }
+        }
+        static readonly StlQuality[] Qualities =
+        {
+            new StlQuality("SolidWorks setting", 0, 0),
+            new StlQuality("Draft", 0.1, 20),
+            new StlQuality("Normal", 0.03, 10),
+            new StlQuality("High", 0.01, 5),
+            new StlQuality("Ultra", 0.002, 2),
+        };
 
         SldWorks swApp;
         ICommandManager cmdMgr;
@@ -68,6 +91,7 @@ namespace SolidSlice
         {
             try { cmdMgr.RemoveCommandGroup2(CmdGroupId, true); } catch { }
             try { cmdMgr.RemoveFlyoutGroup(ExportFlyoutId); } catch { }
+            try { cmdMgr.RemoveFlyoutGroup(QualityFlyoutId); } catch { }
             Marshal.ReleaseComObject(cmdMgr);
             cmdMgr = null;
             swApp = null;
@@ -127,6 +151,18 @@ namespace SolidSlice
             AddExportFlyoutItems(fly);
             fly.FlyoutType = (int)swCommandFlyoutStyle_e.swCommandFlyoutStyle_Simple;
 
+            // Quality dropdown: global STL resolution preset, current one marked with a check
+            try { cmdMgr.RemoveFlyoutGroup(QualityFlyoutId); } catch { }
+            var qColors = new List<Color>();
+            var qLetters = new List<string>();
+            foreach (StlQuality q in Qualities) { qColors.Add(StlColor); qLetters.Add(QualityIcon); }
+            string[] qMainIcons = BuildIconStrips(new List<Color> { StlColor }, new List<string> { QualityIcon });
+            FlyoutGroup qFly = cmdMgr.CreateFlyoutGroup2(QualityFlyoutId, "Quality", "STL quality",
+                "Triangle resolution used by Export STL and all slicer buttons",
+                qMainIcons, BuildIconStrips(qColors, qLetters), "QualityFlyoutOpened", "AlwaysEnabled");
+            AddQualityFlyoutItems(qFly);
+            qFly.FlyoutType = (int)swCommandFlyoutStyle_e.swCommandFlyoutStyle_Simple;
+
             foreach (int docType in new[] { (int)swDocumentTypes_e.swDocPART, (int)swDocumentTypes_e.swDocASSEMBLY })
             {
                 foreach (string name in new[] { TabName, LegacyTabName })
@@ -137,9 +173,9 @@ namespace SolidSlice
                 CommandTab tab = cmdMgr.AddCommandTab(docType, TabName);
                 const int textBelow = (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow;
 
-                // [Export STL ▾] | [slicers...]
-                tab.AddCommandTabBox().AddCommands(new[] { fly.CmdID },
-                    new[] { textBelow | (int)swCommandTabButtonFlyoutStyle_e.swCommandTabButton_SimpleFlyout });
+                // [Export STL ▾] [Quality ▾] | [slicers...]
+                const int flyoutStyle = textBelow | (int)swCommandTabButtonFlyoutStyle_e.swCommandTabButton_SimpleFlyout;
+                tab.AddCommandTabBox().AddCommands(new[] { fly.CmdID, qFly.CmdID }, new[] { flyoutStyle, flyoutStyle });
                 if (ids.Count > 0)
                 {
                     int[] styles = new int[ids.Count];
@@ -174,6 +210,7 @@ namespace SolidSlice
                         g.ResetTransform();
                         g.TranslateTransform(n * s, 0);
                         if (letters[n] == null) DrawStlIcon(g, s, colors[n]);
+                        else if (letters[n] == QualityIcon) DrawQualityIcon(g, s, colors[n]);
                         else DrawLetterIcon(g, s, colors[n], letters[n]);
                     }
                     bmp.Save(p, ImageFormat.Png);
@@ -213,6 +250,24 @@ namespace SolidSlice
             }
         }
 
+        // Triangle split into four smaller triangles (a mesh).
+        static void DrawQualityIcon(Graphics g, int s, Color color)
+        {
+            var a = new PointF(s * 0.5f, s * 0.1f);
+            var b = new PointF(s * 0.08f, s * 0.86f);
+            var c = new PointF(s * 0.92f, s * 0.86f);
+            var ab = new PointF((a.X + b.X) / 2, (a.Y + b.Y) / 2);
+            var bc = new PointF((b.X + c.X) / 2, (b.Y + c.Y) / 2);
+            var ca = new PointF((c.X + a.X) / 2, (c.Y + a.Y) / 2);
+            using (var fill = new SolidBrush(Color.FromArgb(60, color)))
+                g.FillPolygon(fill, new[] { a, b, c });
+            using (var pen = new Pen(color, Math.Max(1.2f, s * 0.07f)) { LineJoin = LineJoin.Round })
+            {
+                g.DrawPolygon(pen, new[] { a, b, c });
+                g.DrawPolygon(pen, new[] { ab, bc, ca });
+            }
+        }
+
         #endregion
 
         #region Commands (called by SolidWorks via callback names)
@@ -235,6 +290,56 @@ namespace SolidSlice
         public void ExportStlAs()
         {
             Export(true);
+        }
+
+        public int AlwaysEnabled()
+        {
+            return 1;
+        }
+
+        // Quality presets. One method per preset: flyout items get plain callback names.
+        public void SetQuality0() { SetQuality(0); }
+        public void SetQuality1() { SetQuality(1); }
+        public void SetQuality2() { SetQuality(2); }
+        public void SetQuality3() { SetQuality(3); }
+        public void SetQuality4() { SetQuality(4); }
+
+        void SetQuality(int index)
+        {
+            using (var k = Registry.CurrentUser.CreateSubKey(SettingsKey))
+                k.SetValue("StlQuality", index);
+            Status("STL quality: " + Qualities[index].Label);
+        }
+
+        static int CurrentQuality()
+        {
+            using (var k = Registry.CurrentUser.OpenSubKey(SettingsKey))
+            {
+                object v = k == null ? null : k.GetValue("StlQuality");
+                int i = v is int ? (int)v : 0;
+                return i >= 0 && i < Qualities.Length ? i : 0;
+            }
+        }
+
+        // Called when the Quality flyout opens: rebuild so the check mark follows the current preset.
+        public void QualityFlyoutOpened()
+        {
+            FlyoutGroup fly = cmdMgr.GetFlyoutGroup(QualityFlyoutId);
+            if (fly == null) return;
+            fly.RemoveAllCommandItems();
+            AddQualityFlyoutItems(fly);
+        }
+
+        static void AddQualityFlyoutItems(FlyoutGroup fly)
+        {
+            int current = CurrentQuality();
+            for (int i = 0; i < Qualities.Length; i++)
+            {
+                string hint = i == 0 ? "Use the STL options from File > Save As > STL > Options"
+                    : "Max deviation " + Qualities[i].DeviationMm + " mm, max angle " + Qualities[i].AngleDeg + "°";
+                fly.AddCommandItem((i == current ? "✓ " : "     ") + Qualities[i].Label, hint, i,
+                    "SetQuality" + i, "AlwaysEnabled");
+            }
         }
 
         // Called when the Export STL flyout opens.
@@ -364,9 +469,17 @@ namespace SolidSlice
             var binPref = swUserPreferenceToggle_e.swSTLBinaryFormat;
             var onePref = swUserPreferenceToggle_e.swSTLComponentsIntoOneFile;
 
+            var qualityPref = swUserPreferenceIntegerValue_e.swSTLQuality;
+            var devPref = swUserPreferenceDoubleValue_e.swSTLDeviation;      // metres
+            var anglePref = swUserPreferenceDoubleValue_e.swSTLAngleTolerance;  // radians
+
             int oldUnits = swApp.GetUserPreferenceIntegerValue((int)unitsPref);
             bool oldBin = swApp.GetUserPreferenceToggle((int)binPref);
             bool oldOne = swApp.GetUserPreferenceToggle((int)onePref);
+            int oldQuality = swApp.GetUserPreferenceIntegerValue((int)qualityPref);
+            double oldDev = swApp.GetUserPreferenceDoubleValue((int)devPref);
+            double oldAngle = swApp.GetUserPreferenceDoubleValue((int)anglePref);
+            StlQuality quality = Qualities[CurrentQuality()];
 
             int errs = 0, warns = 0;
             bool ok;
@@ -375,6 +488,12 @@ namespace SolidSlice
                 swApp.SetUserPreferenceIntegerValue((int)unitsPref, (int)swLengthUnit_e.swMM);
                 swApp.SetUserPreferenceToggle((int)binPref, true);
                 swApp.SetUserPreferenceToggle((int)onePref, true);
+                if (quality.DeviationMm > 0)
+                {
+                    swApp.SetUserPreferenceIntegerValue((int)qualityPref, (int)swSTLQuality_e.swSTLQuality_Custom);
+                    swApp.SetUserPreferenceDoubleValue((int)devPref, quality.DeviationMm / 1000.0);
+                    swApp.SetUserPreferenceDoubleValue((int)anglePref, quality.AngleDeg * Math.PI / 180.0);
+                }
 
                 ok = doc.Extension.SaveAs(outPath, (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
                     (int)(swSaveAsOptions_e.swSaveAsOptions_Silent | swSaveAsOptions_e.swSaveAsOptions_Copy),
@@ -385,6 +504,12 @@ namespace SolidSlice
                 swApp.SetUserPreferenceIntegerValue((int)unitsPref, oldUnits);
                 swApp.SetUserPreferenceToggle((int)binPref, oldBin);
                 swApp.SetUserPreferenceToggle((int)onePref, oldOne);
+                if (quality.DeviationMm > 0)
+                {
+                    swApp.SetUserPreferenceIntegerValue((int)qualityPref, oldQuality);
+                    swApp.SetUserPreferenceDoubleValue((int)devPref, oldDev);
+                    swApp.SetUserPreferenceDoubleValue((int)anglePref, oldAngle);
+                }
             }
 
             if (!ok || !File.Exists(outPath))

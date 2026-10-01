@@ -6,6 +6,17 @@ A SolidWorks add-in that adds a **3D Print** tab (and menu) to parts and assembl
   - **Save next to part**: saves the STL in the part's folder, with no dialog
   - **Choose location...**: pick the folder and file name yourself. The add-in remembers
     the last folder you used.
+- **Quality** (dropdown): the triangle resolution for **every** export, both Export STL
+  and all slicer buttons. The current choice is marked with ✓ and remembered.
+
+  | Preset | Max deviation | Max angle |
+  |---|---|---|
+  | SolidWorks setting (default) | your *File → Save As → STL → Options* | |
+  | Draft | 0.1 mm | 20° |
+  | Normal | 0.03 mm | 10° |
+  | High | 0.01 mm | 5° |
+  | Ultra | 0.002 mm | 2° |
+
 - **One button per installed slicer**: exports the model and opens it in that slicer.
 
 ![The 3D Print tab in SolidWorks with Export STL and Send to Bambu Studio, OrcaSlicer, PrusaSlicer, Cura and Creality Print buttons](docs/toolbar.png)
@@ -68,7 +79,8 @@ Leave the setting off if you prefer a fresh slicer window for every part.
 
 ## How it works
 
-- **STL format:** STLs are always binary, in millimetres, and a single file for assemblies.
+- **STL format:** STLs are always binary, in millimetres, and a single file for assemblies,
+  with the triangle resolution from the **Quality** dropdown.
   Your SolidWorks STL export settings are restored afterwards. If you're not using the
   Default configuration, its name is added to the file name.
 - **Export STL** writes `<part folder>\<part name>.stl` and overwrites any existing file.
@@ -97,8 +109,8 @@ Then run `install.cmd` again.
 
 ## Tips
 
-- **Mesh quality** comes from your SolidWorks STL export settings
-  (*File → Save As → STL → Options*). Pick *Fine* or *Custom* if curves look faceted.
+- **Faceted curves?** Pick *High* or *Ultra* in the **Quality** dropdown.
+  **Huge files or a slow slicer?** Go down to *Normal* or *Draft*.
 - To rebuild after changing the code, close SolidWorks first, because it locks the DLL.
 
 ## License
