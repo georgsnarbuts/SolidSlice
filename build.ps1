@@ -1,4 +1,4 @@
-# Builds bin\SolidSliceLink.dll with the .NET Framework compiler that ships with Windows
+# Builds bin\SolidSlice.dll with the .NET Framework compiler that ships with Windows
 # (no Visual Studio needed). The SolidWorks install is found via the registry;
 # pass -SolidWorksDir to override.
 param([string]$SolidWorksDir)
@@ -27,9 +27,9 @@ New-Item -ItemType Directory -Force $out | Out-Null
 $refs = 'SolidWorks.Interop.sldworks.dll', 'SolidWorks.Interop.swconst.dll', 'SolidWorks.Interop.swpublished.dll'
 foreach ($dll in $refs) { Copy-Item (Join-Path $redist $dll) $out -Force }
 
-& $csc /nologo /target:library /platform:x64 /optimize+ "/out:$out\SolidSliceLink.dll" `
+& $csc /nologo /target:library /platform:x64 /optimize+ "/out:$out\SolidSlice.dll" `
     ($refs | ForEach-Object { "/reference:$out\$_" }) `
     /reference:System.Windows.Forms.dll /reference:System.Drawing.dll `
     (Join-Path $PSScriptRoot 'src\*.cs')
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
-Write-Host "Built $out\SolidSliceLink.dll (SolidWorks API from $redist)"
+Write-Host "Built $out\SolidSlice.dll (SolidWorks API from $redist)"

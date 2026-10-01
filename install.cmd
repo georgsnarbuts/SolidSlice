@@ -9,7 +9,7 @@ if exist "%~dp0bin\SwToBambu.dll" (
 )
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0build.ps1" || goto :fail
-"%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\RegAsm.exe" /nologo /codebase "%~dp0bin\SolidSliceLink.dll" || goto :fail
+"%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\RegAsm.exe" /nologo /codebase "%~dp0bin\SolidSlice.dll" || goto :fail
 echo.
 echo Installed. Start SolidWorks and look for the "3D Print" tab.
 pause
