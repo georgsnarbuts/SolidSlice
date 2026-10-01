@@ -28,6 +28,10 @@ namespace SwToBambu
         const int CmdGroupId = 0xB4B0;
         const string TabName = "3D Print";
         const string LegacyTabName = "Bambu";  // tab name used by v1, removed on load
+        const int ExportFlyoutId = 0xB4B1;
+        const string SettingsKey = @"Software\SwToBambu";
+        const string ExportHint = "Save the active document as STL next to its file";
+        const string ExportAsHint = "Choose where to save the STL";
         static readonly int[] IconSizes = { 20, 32, 40, 64, 96, 128 };
         static readonly Color StlColor = Color.FromArgb(70, 80, 95);
 
@@ -63,6 +67,7 @@ namespace SwToBambu
         public bool DisconnectFromSW()
         {
             try { cmdMgr.RemoveCommandGroup2(CmdGroupId, true); } catch { }
+            try { cmdMgr.RemoveFlyoutGroup(ExportFlyoutId); } catch { }
             Marshal.ReleaseComObject(cmdMgr);
             cmdMgr = null;
             swApp = null;
@@ -77,9 +82,9 @@ namespace SwToBambu
 
         void AddCommands()
         {
-            // icon strip: [Export STL][slicer 0][slicer 1]...
-            var iconColors = new List<Color> { StlColor };
-            var iconLetters = new List<string> { null };
+            // icon strip: [Export STL][Export STL As][slicer 0][slicer 1]...
+            var iconColors = new List<Color> { StlColor, StlColor };
+            var iconLetters = new List<string> { null, null };
             foreach (Slicer s in slicers) { iconColors.Add(s.Color); iconLetters.Add(s.Letter); }
             string[] icons = BuildIconStrips(iconColors, iconLetters);
             string[] mainIcons = BuildIconStrips(new List<Color> { StlColor }, new List<string> { null });
@@ -92,15 +97,17 @@ namespace SwToBambu
 
             const int itemType = (int)(swCommandItemType_e.swMenuItem | swCommandItemType_e.swToolbarItem);
             var items = new List<int>();
-            items.Add(grp.AddCommandItem2("Export STL", -1,
-                "Save the active document as STL next to its file", "Export STL",
-                0, "ExportStl", "CanExport", 0, itemType));
+            // menu entries; on the tab both live in the Export STL flyout below
+            grp.AddCommandItem2("Export STL", -1, ExportHint, "Export STL",
+                0, "ExportStl", "CanExport", 0, (int)swCommandItemType_e.swMenuItem);
+            grp.AddCommandItem2("Export STL As...", -1, ExportAsHint, "Export STL As",
+                1, "ExportStlAs", "CanExport", 1, (int)swCommandItemType_e.swMenuItem);
             for (int i = 0; i < slicers.Count; i++)
             {
                 string hint = "Send to " + slicers[i].Name;
                 items.Add(grp.AddCommandItem2(slicers[i].Name, -1,
                     "Export the active document and open it in " + slicers[i].Name, hint,
-                    i + 1, "SendToSlicer(" + i + ")", "CanExport", i + 1, itemType));
+                    i + 2, "SendToSlicer(" + i + ")", "CanExport", i + 2, itemType));
             }
 
             grp.HasToolbar = true;
@@ -109,6 +116,15 @@ namespace SwToBambu
 
             var ids = new List<int>();
             foreach (int idx in items) ids.Add(grp.get_CommandID(idx));
+
+            // Export STL split button: click = next to part, arrow = choose location
+            try { cmdMgr.RemoveFlyoutGroup(ExportFlyoutId); } catch { }
+            string[] stlIcons = BuildIconStrips(new List<Color> { StlColor, StlColor }, new List<string> { null, null });
+            FlyoutGroup fly = cmdMgr.CreateFlyoutGroup2(ExportFlyoutId, "Export STL", "Export STL", ExportHint,
+                mainIcons, stlIcons, "ExportFlyoutOpened", "CanExport");
+            fly.AddCommandItem("Save next to part", ExportHint, 0, "ExportStl", "CanExport");
+            fly.AddCommandItem("Choose location...", ExportAsHint, 1, "ExportStlAs", "CanExport");
+            fly.FlyoutType = (int)swCommandFlyoutStyle_e.swCommandFlyoutStyle_Favorite;
 
             foreach (int docType in new[] { (int)swDocumentTypes_e.swDocPART, (int)swDocumentTypes_e.swDocASSEMBLY })
             {
@@ -120,14 +136,14 @@ namespace SwToBambu
                 CommandTab tab = cmdMgr.AddCommandTab(docType, TabName);
                 const int textBelow = (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow;
 
-                // [Export STL] | [slicers...]
-                tab.AddCommandTabBox().AddCommands(new[] { ids[0] }, new[] { textBelow });
-                if (ids.Count > 1)
+                // [Export STL ▾] | [slicers...]
+                tab.AddCommandTabBox().AddCommands(new[] { fly.CmdID },
+                    new[] { textBelow | (int)swCommandTabButtonFlyoutStyle_e.swCommandTabButton_ActionFlyout });
+                if (ids.Count > 0)
                 {
-                    int[] slicerIds = ids.GetRange(1, ids.Count - 1).ToArray();
-                    int[] styles = new int[slicerIds.Length];
+                    int[] styles = new int[ids.Count];
                     for (int i = 0; i < styles.Length; i++) styles[i] = textBelow;
-                    tab.AddCommandTabBox().AddCommands(slicerIds, styles);
+                    tab.AddCommandTabBox().AddCommands(ids.ToArray(), styles);
                 }
             }
         }
@@ -208,27 +224,38 @@ namespace SwToBambu
             return (t == (int)swDocumentTypes_e.swDocPART || t == (int)swDocumentTypes_e.swDocASSEMBLY) ? 1 : 0;
         }
 
+        // Export STL: next to the part file (asks for a location if the part was never saved).
         public void ExportStl()
+        {
+            Export(false);
+        }
+
+        // Export STL As...: always asks for a location.
+        public void ExportStlAs()
+        {
+            Export(true);
+        }
+
+        // Called when the Export STL flyout opens; its items are static so nothing to do.
+        public void ExportFlyoutOpened()
+        {
+        }
+
+        void Export(bool chooseLocation)
         {
             try
             {
                 var doc = swApp.ActiveDoc as ModelDoc2;
                 if (doc == null) return;
 
-                string dir = Path.GetDirectoryName(doc.GetPathName());
+                string partDir = Path.GetDirectoryName(doc.GetPathName());
                 string outPath;
-                if (string.IsNullOrEmpty(dir))
+                if (chooseLocation || string.IsNullOrEmpty(partDir))
                 {
-                    // never saved: ask where to put it
-                    using (var dlg = new SaveFileDialog())
-                    {
-                        dlg.Filter = "STL (*.stl)|*.stl";
-                        dlg.FileName = BaseName(doc) + ".stl";
-                        if (dlg.ShowDialog() != DialogResult.OK) return;
-                        outPath = dlg.FileName;
-                    }
+                    outPath = AskStlPath(BaseName(doc) + ".stl", partDir);
+                    if (outPath == null) return;
                 }
-                else outPath = Path.Combine(dir, BaseName(doc) + ".stl");
+                else outPath = Path.Combine(partDir, BaseName(doc) + ".stl");
 
                 if (SaveStl(doc, outPath)) Status("Exported " + outPath);
             }
@@ -236,6 +263,37 @@ namespace SwToBambu
             {
                 Warn("STL export failed:\n" + ex.Message);
             }
+        }
+
+        // Save dialog that starts in the last used export folder (or the part's folder).
+        string AskStlPath(string fileName, string partDir)
+        {
+            string lastDir;
+            using (var k = Registry.CurrentUser.OpenSubKey(SettingsKey))
+                lastDir = k == null ? null : k.GetValue("LastExportFolder") as string;
+
+            using (var dlg = new SaveFileDialog())
+            {
+                dlg.Title = "Export STL";
+                dlg.Filter = "STL (*.stl)|*.stl";
+                dlg.FileName = fileName;
+                if (!string.IsNullOrEmpty(lastDir) && Directory.Exists(lastDir)) dlg.InitialDirectory = lastDir;
+                else if (!string.IsNullOrEmpty(partDir)) dlg.InitialDirectory = partDir;
+
+                if (dlg.ShowDialog(new SwWindow(swApp)) != DialogResult.OK) return null;
+
+                using (var k = Registry.CurrentUser.CreateSubKey(SettingsKey))
+                    k.SetValue("LastExportFolder", Path.GetDirectoryName(dlg.FileName));
+                return dlg.FileName;
+            }
+        }
+
+        // Lets WinForms dialogs use the SolidWorks main window as their owner.
+        class SwWindow : IWin32Window
+        {
+            readonly IntPtr handle;
+            public SwWindow(SldWorks app) { handle = new IntPtr(((Frame)app.Frame()).GetHWndx64()); }
+            public IntPtr Handle { get { return handle; } }
         }
 
         public void SendToSlicer(string index)
